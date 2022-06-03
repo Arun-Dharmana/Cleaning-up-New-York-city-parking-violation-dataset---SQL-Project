@@ -1,0 +1,99 @@
+--1) List all the columns and all the general information on each column from the table parking_violation 
+
+select * from information_schema.columns
+	where table_name = 'parking_violation'
+	
+--2) Count the number of null values in the vehicle_body_type and group by issuing agency. 
+-- Replace null values with the value "Unknown" 
+
+
+--Counting the number of null values
+select issuing_agency, count(*) as NumNull 
+	from parking_violation 
+		where vehicle_body_type IS NULL
+			group by issuing_agency
+				order by NumNull desc
+				
+--Updating the null values with the value "Unknown"
+update parking_violation
+	set vehicle_body_type = coalesce(vehicle_body_type,'Unknown')
+
+--Check the updated values
+select issuing_agency, count(*) as NumUnknown 
+	from parking_violation 
+		where vehicle_body_type = 'Unknown'
+			group by issuing_agency
+				order by NumUnknown desc
+
+
+--3) Identify the records where multiple tickets were issued for the same violation
+
+with duplicate as (
+select summons_number, plate_id,issue_date,violation_time,house_number,street_name,
+	row_number() over(partition by plate_id,issue_date,violation_time,house_number,street_name order by summons_number) as duplicate
+		from parking_violation
+)
+
+select * from duplicate 
+	where duplicate>1
+
+--4) The violation time is in string format, convert it into a time stamp and count the number 
+	-- of violations by hour 
+
+    -- Check the current format of the column violation_time
+	select violation_time from parking_violation
+	
+    -- There is one invalid date "2450A", change it to "0050A"
+
+	update parking_violation
+		set violation_time = '0050A' where violation_time = '2450A'
+
+	--Create a new column and name it violation_time_stamped  
+	
+	ALTER TABLE parking_violation
+	ADD COLUMN violation_time_stamped TIME 
+		
+    -- The last letter of each cell in the violation_time column is an alphabet. 
+    --Update the newly created violation_time_stamped column with a formula to remove the last character 
+    -- and convert it to a time stamp  
+
+	update parking_violation
+	set violation_time_stamped = TO_TIMESTAMP(SUBSTR(violation_time,1,length(violation_time)-1),'HH24MI')::TIME
+
+
+
+    -- Count the number of violations by hour
+	select extract(hour from violation_time_stamped) as hour_violation, count(*)
+		from parking_violation
+			group by hour_violation
+				order by hour_violation asc
+
+--5) To answer the question of why violations occur, check the hypothesis that parking violations occur 
+--as violators park just before the restrictions begin or end. What percentage of violations occured 
+-- within one hour of parking violations begining or ending
+	
+	-- Check the current format of the column to_hours_in_effect
+	select to_hours_in_effect from parking_violation
+	
+	-- There is one invalid date "30A", change it to "0300A"
+		update parking_violation
+			set to_hours_in_effect = '0300A' 
+				where to_hours_in_effect = '30A'
+	
+	--Create a new column and name it to_hours_in_effect_stamped
+	ALTER TABLE parking_violation
+	ADD COLUMN to_hours_in_effect_stamped TIME
+	
+    -- The last letter of each cell in the to_hours_in_effect column is an alphabet. 
+    -- Update the newly created to_hours_in_effect_stamped column with a formula to remove 
+    -- the last character and convert it to a time stamp  
+	update parking_violation
+	set to_hours_in_effect_stamped = TO_TIMESTAMP(SUBSTR(to_hours_in_effect,1,length(to_hours_in_effect)-1),'HH24MI')::TIME
+		where to_hours_in_effect != 'ALL'
+		
+				
+	
+		
+				
+				
+				
