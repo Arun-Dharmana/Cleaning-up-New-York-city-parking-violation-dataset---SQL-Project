@@ -91,6 +91,38 @@ select * from duplicate
 	set to_hours_in_effect_stamped = TO_TIMESTAMP(SUBSTR(to_hours_in_effect,1,length(to_hours_in_effect)-1),'HH24MI')::TIME
 		where to_hours_in_effect != 'ALL'
 		
+	-- Repeat the same above process to convert the from_hours_in_effect column to a time stamp
+	select from_hours_in_effect from parking_violation
+	
+	ALTER TABLE parking_violation
+	ADD COLUMN from_hours_in_effect_stamped TIME
+	
+	update parking_violation
+	set from_hours_in_effect_stamped = TO_TIMESTAMP(SUBSTR(from_hours_in_effect,1,length(from_hours_in_effect)-1),'HH24MI')::TIME
+		where from_hours_in_effect != 'ALL'
+
+-- CTE to extract the difference between the start time of the parking restrictions and the 
+-- violation time in two columns in hours and minutes  
+with hm as (
+	select summons_number, from_hours_in_effect_stamped, to_hours_in_effect_stamped, violation_time_stamped,
+		extract(hour from to_hours_in_effect_stamped - violation_time_stamped) as hours,
+		extract(minute from to_hours_in_effect_stamped - violation_time_stamped) as minutes
+			from parking_violation
+	)
+
+--Extract the violations that are booked within one hour of the restrictions coming into place, 
+-- take a percentage of these violations on the total violations to check what % of the violations
+-- occur close to the time of the restrictions coming into effect
+
+select count(*) as Risky_Violations, (select count(*) from Parking_Violation as Total_Violations),
+	(count(*)*1.00/ (select count(*) from Parking_Violation as Total_Violations)) *100 as Perc_Risky
+		from hm
+	where hours = 0 and (minutes<=59 or minutes>=-59)
+	
+
+
+				
+		
 				
 	
 		
