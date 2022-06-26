@@ -118,7 +118,43 @@ select count(*) as Risky_Violations, (select count(*) from Parking_Violation as 
 	(count(*)*1.00/ (select count(*) from Parking_Violation as Total_Violations)) *100 as Perc_Risky
 		from hm
 	where hours = 0 and (minutes<=59 or minutes>=-59)
+
+--6) Combine the house_number and street_name to create street_address, use the days_parking_in_effect
+-- column to list whether parking restrictions exist for each day of the week for each street_address
+
+-- Use CONCAT function to combine house number and street name. The days_parking_in_effect column has 
+-- parking restrictions for each day of the week, use the REGEXP function to split to individual rows 
+-- for each day of the week and the ROW_NUMBER window function to list the day number of each week 
+
+select ROW_NUMBER() 
+OVER(partition by street_address, violation_county order by street_address,violation_county) as day_number,*
+from(
+select CONCAT(house_number,' ',street_name) as street_address,violation_county,
+	REGEXP_SPLIT_TO_TABLE(days_parking_in_effect,'') as daily_parking_violation
+	from parking_violation) as subq
+
+--7) Identify the top 4 agencies that issued the most number of tickets and use the FILTER function to
+-- list the number of violations by each violation code for each of the 4 agencies in pivot format
+
+-- Identify the top 4 agencies by counting and grouping by the issuing_agency
+
+select issuing_agency,count(*) as Num_Violations
+	from parking_violation
+		group by issuing_agency
+			order by Num_Violations desc
+			
+--Use the FILTER function to list in pivot format
+
+select violation_code,
+	COUNT(issuing_agency) FILTER(where issuing_agency = 'P') as "P",
+	COUNT(issuing_agency) FILTER(where issuing_agency = 'X') as "X",
+	COUNT(issuing_agency) FILTER(where issuing_agency = 'S') as "S",
+	COUNT(issuing_agency) FILTER(where issuing_agency = 'K') as "K"
+		from parking_violation
+			group by violation_code
+				order by violation_code
 	
+				
 
 
 				
